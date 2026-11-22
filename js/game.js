@@ -16,11 +16,16 @@
       desc: 'Time for most leads, not all. Contradictions are highlighted. Puzzles are timed: fail one and lose 30 minutes.' },
     dread: { label: 'Dread', offset: 120, leads: 11, highlight: false,
       desc: 'Only 11 leads. No highlights, fewer witnesses, short puzzle timers, and some guests refuse to show their shoes.' },
+    // Earned at Inspector rank. The mystery itself is a Dread case (gen), so it is checked by the same fairness rules.
+    nightmare: { label: 'Nightmare', offset: 150, leads: 10, highlight: false, gen: 'dread', rank: 'Inspector',
+      desc: 'A Dread case with only 10 leads, even shorter puzzle timers, and a notebook that asks no questions.' },
   };
+  const genDiff = (d) => (DIFFS[d] && DIFFS[d].gen) || d;
   // Seconds allowed for each puzzle. Cozy has no entry: no time limit and nothing to lose.
   const TIMERS = {
     standard: { drawer: 150, letter: 90, cipher: 75 },
     dread: { drawer: 90, letter: 60, cipher: 45 },
+    nightmare: { drawer: 70, letter: 45, cipher: 35 },
   };
   const PUZZLE_IDS = ['drawer', 'letter', 'cipher'];
   const ERAS = { old: { label: 'Old-fashioned', code: 'O' }, modern: { label: 'Present day', code: 'N' } };
@@ -29,6 +34,10 @@
     gaslight: { label: 'Gaslight Express', swatch: ['#4a1c1c', '#c9a46a', '#6b6866', '#efe6d2'] },
     seance: { label: 'Séance Lilac', swatch: ['#1a1620', '#9a86b0', '#c98b95', '#ece4d6'] },
     orchard: { label: 'Autumn Orchard', swatch: ['#3b2a1e', '#d9792b', '#56663a', '#e8b65a'] },
+    // Earned through the career (see RANKS).
+    candle: { label: 'Candle Wax', swatch: ['#15110c', '#f0a640', '#c4b294', '#ffd98a'] },
+    bloodmoon: { label: 'Blood Moon', swatch: ['#140b0d', '#e0574f', '#c09a9a', '#ff9b7a'] },
+    ink: { label: 'Ink and Bone', swatch: ['#0b0b0c', '#d8c08a', '#a9a59c', '#f2eee6'] },
   };
   const DEFAULT_OPTS = { place: 'random', era: 'random', palette: 'auto', sound: 'off', lastSound: 'low' };
   const SOUNDS = { off: { label: 'Off', v: 0 }, low: { label: 'Quiet', v: 0.35 }, high: { label: 'Normal', v: 0.75 } };
@@ -103,6 +112,20 @@
     '<span class="avatar' + (small ? ' sm' : '') + (p.portrait ? ' face' : '') + '" style="--pc:' + p.color + '" aria-hidden="true">' + initials(p) + faceImg(p) + '</span>';
   // Hand-drawn icons (art/icons). They take the colour of the text around them.
   const ico = (name) => '<span class="ico ico-' + name + '" aria-hidden="true"></span>';
+  // Painted weapons (art/weapons/<place>-<name>.jpg). Some weapons look different in the present day.
+  const WEAPON_ART = new Set(['ship-candlestick', 'ship-knife', 'ship-cord', 'ship-boathook', 'ship-wrench', 'ship-sextant', 'ship-rope',
+    'train-cakeknife', 'train-pan', 'train-cord', 'train-lamp', 'train-hatpin', 'train-opener', 'train-strap', 'train-shovel', 'train-extinguisher',
+    'plane-bottle', 'plane-knife', 'plane-lamp', 'plane-flashlight', 'plane-blindcord', 'plane-opener', 'plane-soapdish', 'plane-strap',
+    'manor-fork', 'manor-rollingpin', 'manor-bellcord', 'manor-shears', 'manor-candelabra']);
+  const WEAPON_LOOK = { 'plane-flashlight-old': 'plane-lamp', 'train-hatpin-modern': 'train-opener', 'train-shovel-modern': 'train-extinguisher' };
+  function weaponArt(w) {
+    const k = S.c.place + '-' + w.id;
+    const f = WEAPON_LOOK[k + '-' + S.c.era] || k;
+    return WEAPON_ART.has(f) ? 'art/weapons/' + f + '.jpg' : '';
+  }
+  const weaponImg = (w, cls) => { const src = weaponArt(w); return src ? '<img class="' + (cls || 'wpn-img') + '" src="' + src + '" alt="" decoding="async" onerror="this.remove()">' : ''; };
+  // Small painted pictures on evidence cards (art/clues).
+  const CLUE_ART = { item: 'magnifying-glass', proof: 'folded-ticket', motive: 'wax-envelope', puzzle: 'skeleton-key' };
 
   // ---------- guest portraits ----------
   // 16 painted faces per era, numbered by how well-off they look: [wealth 1-3, f / m / n (could be anyone)].
@@ -167,9 +190,58 @@
   function saveOpts(o) { try { localStorage.setItem(OPT_KEY, JSON.stringify(o)); } catch (e) { /* ignore */ } }
   let OPTS = loadOpts();
 
+  // ---------- the detective's career ----------
+  // Every case you close adds its score to a running total, which climbs a ladder of ranks.
+  // Ranks unlock new colour themes and the Nightmare difficulty: things to look at and harder play, never help.
+  // Only the FIRST time you close a given case code counts, so replaying a case you know earns nothing.
+  // The career lives in this browser only (there are no accounts).
+  const CAREER_KEY = 'midnight-crossing-career-v1';
+  const RANKS = [
+    { t: 'Constable', at: 0 },
+    { t: 'Sergeant', at: 2500, unlock: { palette: 'candle' }, what: 'the Candle Wax colour theme' },
+    { t: 'Inspector', at: 7500, unlock: { diff: 'nightmare' }, what: 'Nightmare difficulty' },
+    { t: 'Chief Inspector', at: 16000, unlock: { palette: 'bloodmoon' }, what: 'the Blood Moon colour theme' },
+    { t: 'Master Detective', at: 30000, unlock: { palette: 'ink' }, what: 'the Ink and Bone colour theme' },
+  ];
+  // [symbol, name, how to earn it]. Earned only on cases that count toward your career.
+  const BADGES = {
+    first: ['✦', 'First case closed', 'Close your first case.'],
+    exact: ['✓', 'Never wrong', 'Name the killer, the weapon and the hour, all correctly, with at least three key discoveries.'],
+    silver: ['❦', 'Silver tongue', 'Break the killer\'s alibi and get the red herring\'s confession in the same case.'],
+    light: ['☽', 'Light touch', 'Break the killer\'s alibi and catch them with at least half your leads unused.'],
+    stone: ['◈', 'No stone unturned', 'Solve all three puzzles in one case.'],
+    hound: ['✧', 'Bloodhound', 'Catch the killer after matching the footprint to their own shoes.'],
+    nightmare: ['✠', 'Nightmare survivor', 'Catch the killer on Nightmare.'],
+  };
+  const CODE_RE = /^[STPM][ON]-\d{4}$/;
+  function cleanCareer(v) {
+    const num = (x) => (Number.isFinite(x) && x >= 0 ? Math.floor(x) : 0);
+    v = v && typeof v === 'object' ? v : {};
+    const badges = {};
+    if (v.badges && typeof v.badges === 'object') Object.keys(BADGES).forEach((k) => { if (Number.isFinite(v.badges[k])) badges[k] = v.badges[k]; });
+    const book = Array.isArray(v.book) ? v.book.filter((e) => e && typeof e === 'object' && CODE_RE.test(e.code) && DIFFS[e.diff]).map((e) => ({
+      code: e.code, diff: e.diff, at: num(e.at), right: !!e.right, hits: Math.min(3, num(e.hits)), score: num(e.score),
+      rank: typeof e.rank === 'string' ? e.rank.slice(0, 40) : '', counted: !!e.counted, killer: typeof e.killer === 'string' ? e.killer.slice(0, 60) : '',
+      badges: Array.isArray(e.badges) ? e.badges.filter((b) => BADGES[b]) : [] })) : [];
+    return {
+      points: num(v.points), closed: num(v.closed), solved: num(v.solved), best: num(v.best), badges,
+      codes: Array.isArray(v.codes) ? v.codes.filter((c, i, a) => typeof c === 'string' && CODE_RE.test(c) && a.indexOf(c) === i).slice(-5000) : [],
+      book: book.slice(-100),
+    };
+  }
+  function loadCareer() {
+    try { return cleanCareer(JSON.parse(localStorage.getItem(CAREER_KEY))); } catch (e) { return cleanCareer(null); }
+  }
+  function saveCareer() { try { localStorage.setItem(CAREER_KEY, JSON.stringify(CAREER)); } catch (e) { /* ignore */ } }
+  let CAREER = loadCareer();
+  function rankIndex(points) { let i = 0; RANKS.forEach((r, k) => { if (points >= r.at) i = k; }); return i; }
+  const rankFor = (kind, id) => RANKS.find((r) => r.unlock && r.unlock[kind] === id);
+  // Something is locked only if a rank unlocks it and you have not reached that rank.
+  const isLocked = (kind, id) => { const r = rankFor(kind, id); return !!r && CAREER.points < r.at; };
+
   function applyPalette() {
     let p = 'moonlit';
-    if (OPTS.palette !== 'auto') p = OPTS.palette;
+    if (OPTS.palette !== 'auto' && !isLocked('palette', OPTS.palette)) p = OPTS.palette;
     else if (S.c && S.screen !== 'title') p = place().palette;
     document.documentElement.setAttribute('data-palette', p);
   }
@@ -192,7 +264,7 @@
   }
 
   function startCase(seed, placeId, era, diff) {
-    S.c = assignPortraits(MC.generateCase(seed, placeId, era, diff));
+    S.c = assignPortraits(MC.generateCase(seed, placeId, era, genDiff(diff)));
     S.diff = diff;
     S.done = [];
     S.solved = [];
@@ -240,10 +312,11 @@
   // ---------- title ----------
   function optGroup(key, items) {
     return '<div class="choices">' + items.map((it) => {
-      const on = OPTS[key] === it.v;
-      return '<button class="choice' + (on ? ' selected' : '') + '" data-act="opt" data-k="' + key + '" data-v="' + it.v + '" aria-pressed="' + on + '">' +
+      const on = OPTS[key] === it.v && !it.locked;
+      return '<button class="choice' + (on ? ' selected' : '') + (it.locked ? ' locked' : '') + '" data-act="opt" data-k="' + key + '" data-v="' + it.v + '" aria-pressed="' + on + '"' +
+        (it.locked ? ' disabled' : '') + '>' +
         (it.swatch ? '<span class="swatch">' + it.swatch.map((c) => '<i style="background:' + c + '"></i>').join('') + '</span>' : '') +
-        '<span>' + esc(it.label) + '</span></button>';
+        '<span>' + esc(it.label) + (it.locked ? '<small>Reach ' + esc(it.locked) + ' to unlock</small>' : '') + '</span></button>';
     }).join('') + '</div>';
   }
 
@@ -259,16 +332,19 @@
             (S.numError ? '<p class="error">' + esc(S.numError) + '</p>' : '')
           : '<p class="menu-label">' + esc(optSummary()) + ' <button class="linkish" data-act="title-mode" data-mode="options">Change</button></p>') +
         '<p class="menu-label">Choose a difficulty</p>' +
-        Object.keys(DIFFS).map((k) =>
-          '<button class="btn diff-btn" data-act="' + act + '" data-diff="' + k + '">' +
-          '<strong>' + DIFFS[k].label + '</strong><span>' + DIFFS[k].desc + '</span></button>').join('') +
+        Object.keys(DIFFS).map((k) => {
+          const locked = isLocked('diff', k);
+          return '<button class="btn diff-btn' + (locked ? ' locked' : '') + '" data-act="' + act + '" data-diff="' + k + '"' + (locked ? ' disabled' : '') + '>' +
+            '<strong>' + DIFFS[k].label + (locked ? ' · reach ' + rankFor('diff', k).t + ' to unlock' : '') + '</strong><span>' + DIFFS[k].desc + '</span></button>';
+        }).join('') +
         '<button class="btn ghost" data-act="title-mode" data-mode="">Back</button>';
     } else if (S.titleMode === 'options') {
       menu =
         '<div class="panel opts">' +
         '<h3>Location</h3>' + optGroup('place', [{ v: 'random', label: 'Random' }].concat(Object.keys(PLACES).map((k) => ({ v: k, label: PLACES[k].label })))) +
         '<h3>Era</h3>' + optGroup('era', [{ v: 'random', label: 'Random' }].concat(Object.keys(ERAS).map((k) => ({ v: k, label: ERAS[k].label })))) +
-        '<h3>Colours</h3>' + optGroup('palette', [{ v: 'auto', label: 'Match the location' }].concat(Object.keys(PALETTES).map((k) => ({ v: k, label: PALETTES[k].label, swatch: PALETTES[k].swatch })))) +
+        '<h3>Colours</h3>' + optGroup('palette', [{ v: 'auto', label: 'Match the location' }].concat(Object.keys(PALETTES).map((k) => ({
+          v: k, label: PALETTES[k].label, swatch: PALETTES[k].swatch, locked: isLocked('palette', k) ? rankFor('palette', k).t : '' })))) +
         (Atmo.available ? '<h3>Sound</h3>' + optGroup('sound', Object.keys(SOUNDS).map((k) => ({ v: k, label: SOUNDS[k].label }))) +
           '<p class="hint">Quiet ambience for each place, and a clock that strikes the hours. You can also switch sound on and off from the ' + ico('sound-off') + ' button during a case.</p>' : '') +
         '<p class="hint">Random picks a new location or era for every case. Shared case codes always play the same, whatever your options.</p>' +
@@ -295,11 +371,14 @@
         '</ul>' +
         '<p>Every case has a code, like <strong>TN-4821</strong>. Give a friend the code and they get the same mystery.</p>' +
         '</div><button class="btn ghost" data-act="title-mode" data-mode="">Back</button>';
+    } else if (S.titleMode === 'casebook') {
+      menu = viewCasebook() + '<button class="btn ghost" data-act="title-mode" data-mode="">Back</button>';
     } else {
       menu =
         (sv ? '<button class="btn primary big" data-act="continue">Continue case ' + esc(PLACES[sv.place].code + ERAS[sv.era].code + '-' + sv.seed) + '</button>' : '') +
         '<button class="btn ' + (sv ? '' : 'primary ') + 'big" data-act="title-mode" data-mode="new">New case</button>' +
         '<button class="btn" data-act="title-mode" data-mode="number">Play a case code</button>' +
+        '<button class="btn" data-act="title-mode" data-mode="casebook">Casebook</button>' +
         '<button class="btn" data-act="title-mode" data-mode="options">Options</button>' +
         '<button class="btn ghost" data-act="title-mode" data-mode="how">How to play</button>';
     }
@@ -307,8 +386,45 @@
       '<section class="screen title-screen">' + LANTERN +
       '<h1 class="game-title">The Midnight<br>Crossing</h1>' +
       '<p class="tagline">A murder in the dark. A new case every night.</p>' +
+      (S.titleMode ? '' : '<button class="rank-chip" data-act="title-mode" data-mode="casebook"><strong>' + RANKS[rankIndex(CAREER.points)].t + '</strong> · ' +
+        CAREER.points.toLocaleString() + ' career points</button>') +
       '<div class="title-menu">' + menu + '</div></section>'
     );
+  }
+
+  // Progress toward the next rank, as a bar.
+  function rankProgress(points) {
+    const i = rankIndex(points);
+    const cur = RANKS[i], next = RANKS[i + 1];
+    if (!next) return '<p class="hint">The highest rank there is.</p>';
+    const pct = Math.round(((points - cur.at) / (next.at - cur.at)) * 100);
+    return '<div class="rank-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct + '" aria-label="Progress to ' + next.t + '"><i style="width:' + pct + '%"></i></div>' +
+      '<p class="hint">' + (next.at - points).toLocaleString() + ' points to ' + next.t + ', which unlocks ' + next.what + '.</p>';
+  }
+
+  function viewCasebook() {
+    const C = CAREER;
+    const ri = rankIndex(C.points);
+    const fmtDate = (t) => { try { return t ? new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : ''; } catch (e) { return ''; } };
+    const ladder = RANKS.map((r, i) => '<li class="' + (i <= ri ? 'reached' : '') + (i === ri ? ' current' : '') + '"><span class="mark ' + (i <= ri ? 'ok' : 'na') + '">' + (i <= ri ? '✓' : '') + '</span>' +
+      '<div><strong>' + r.t + '</strong><span>' + (r.at ? r.at.toLocaleString() + ' points' : 'Where everyone starts') + (r.what ? ' · unlocks ' + r.what : '') + '</span></div></li>').join('');
+    const badges = Object.keys(BADGES).map((k) => {
+      const b = BADGES[k], got = !!C.badges[k];
+      return '<li class="badge' + (got ? ' earned' : '') + '"><span class="badge-sym" aria-hidden="true">' + b[0] + '</span><div><strong>' + b[1] + '</strong><span>' + b[2] +
+        (got ? ' Earned ' + fmtDate(C.badges[k]) + '.' : '') + '</span></div></li>';
+    }).join('');
+    const cases = C.book.slice().reverse().map((e) => '<li class="cb-case"><div class="cb-top"><strong>' + e.code + '</strong><span class="cb-score">' + e.score.toLocaleString() + '</span></div>' +
+      '<div class="cb-meta"><span class="mark ' + (e.right ? 'ok' : 'bad') + '">' + (e.right ? '✓' : '✗') + '</span><span>' + (e.right ? 'Caught ' : 'Missed ') + esc(e.killer) +
+      ' · ' + DIFFS[e.diff].label + ' · ' + esc(e.rank) + ' · ' + fmtDate(e.at) + (e.counted ? '' : ' · replay, not counted') + '</span>' +
+      '<button class="mini-btn" data-act="replay" data-code="' + e.code + '">Play again</button></div></li>').join('');
+    return '<div class="panel casebook">' +
+      '<p class="kicker">Your rank</p><h2 class="cb-rank">' + RANKS[ri].t + '</h2><p class="cb-points">' + C.points.toLocaleString() + ' career points</p>' + rankProgress(C.points) +
+      '<div class="cb-stats"><div><strong>' + C.closed + '</strong><span>cases closed</span></div><div><strong>' + C.solved + '</strong><span>killers caught</span></div>' +
+      '<div><strong>' + C.best.toLocaleString() + '</strong><span>best score</span></div></div>' +
+      '<h3>Ranks</h3><ul class="cb-ladder">' + ladder + '</ul>' +
+      '<h3>Badges · ' + Object.keys(C.badges).length + ' of ' + Object.keys(BADGES).length + '</h3><ul class="badges">' + badges + '</ul>' +
+      '<h3>Closed cases</h3>' + (cases ? '<ol class="cb-cases">' + cases + '</ol>' : '<p class="hint">No cases closed yet. Your first one will appear here.</p>') +
+      '<p class="hint">Only the first time you close a case counts toward your career. Your casebook is kept in this browser, so clearing its data or changing device starts it over.</p></div>';
   }
 
   function optSummary() {
@@ -714,7 +830,7 @@
         '<strong>' + esc(n.p.name) + '</strong><small>' + (n.victim ? '† The victim' : esc(n.p.title)) + '</small>';
     } else if (n.type === 'time') {
       label = 'The hour from ' + n.label;
-      inner = '<span aria-hidden="true">🕰</span> ' + n.label;
+      inner = n.label;
     } else if (n.type === 'room') {
       label = n.r.name;
       inner = '<span class="dot" style="background:' + n.r.color + '"></span>' + esc(n.r.name);
@@ -724,9 +840,11 @@
       if (m) cls.push('mark-' + m);
       if (!B.seen.includes(n.id)) cls.push('new');
       label = plain(n.title) + (m ? ', marked ' + MARKS[m] : '');
-      inner = '<span class="bn-cat"><span aria-hidden="true">' + BCAT[n.cat][0] + '</span> ' + BCAT[n.cat][1] + '</span>' +
+      const pic = (n.id === 'e:missing' || n.id === 'e:hidden') ? weaponImg(weaponById(S.c.weapon), 'bn-pic')
+        : CLUE_ART[n.cat] ? '<img class="bn-pic" src="art/clues/' + CLUE_ART[n.cat] + '.jpg" alt="" decoding="async" onerror="this.remove()">' : '';
+      inner = pic + '<span class="bn-cat">' + (pic ? '' : '<span aria-hidden="true">' + BCAT[n.cat][0] + '</span> ') + BCAT[n.cat][1] + '</span>' +
         '<strong>' + n.title + '</strong><span class="bn-text">' + n.text + '</span>' +
-        (m ? '<span class="stamp s-' + m + '">' + MARKS[m] + '</span>' : '');
+        (m ? '<span class="stamp s-' + m + '"><span>' + MARKS[m] + '</span></span>' : '');
     }
     return '<div class="' + cls.join(' ') + '" data-node="' + n.id + '" tabindex="0" role="button" aria-pressed="' + sel + '" aria-label="' + esc(label) + '"' +
       ' style="left:' + pos[0] + 'px;top:' + pos[1] + 'px;--tilt:' + tilt(n.id) + 'deg">' + inner + '</div>';
@@ -1168,6 +1286,7 @@
   function notebookQuestions() {
     const c = S.c;
     const open = [], settled = [];
+    if (S.diff === 'nightmare') return { open, settled }; // on Nightmare the notebook asks nothing
     const hl = DIFFS[S.diff].highlight;
     const w = weaponById(c.weapon);
     const crime = bodySeen();
@@ -1233,6 +1352,9 @@
   }
 
   function nbQuestions() {
+    if (S.diff === 'nightmare') {
+      return '<section class="panel"><h3>Unresolved questions</h3><p class="hint">On Nightmare, your notebook asks no questions. Everything you found is still recorded in the other sections.</p></section>';
+    }
     const qs = notebookQuestions();
     const li = (x, cls) => '<li class="' + cls + '"><strong>' + x[0] + '</strong><span>' + x[1] + '</span></li>';
     return '<section class="panel"><h3>Unresolved questions</h3>' +
@@ -1730,11 +1852,42 @@
   // as found once you have inspected the object it is in. S.objs[room] = keys inspected, in order.
   // Saves from before rooms could be explored have no entry, so every object in a searched room counts as inspected.
   const OBJ_SLOTS = [[50, 27], [16, 40], [84, 40], [20, 74], [80, 74]];
+  // Painted rooms (art/rooms/<place>-<room>-old.jpg), old-fashioned cases only for now.
+  // Each list holds where the room's five objects were painted, as [left %, top %], in the order of places.js OBJECTS.
+  const ROOM_ART = {
+    'manor-dininghall': [[50, 43], [33, 45], [20, 66], [85, 68], [72, 53]],
+    'manor-kitchen': [[52, 54], [33, 51], [17, 63], [65, 38], [86, 62]],
+    'manor-library': [[76, 44], [46, 26], [57, 55], [85, 58], [29, 60]],
+    'plane-berths': [[49, 48], [27, 60], [66, 33], [40, 66], [87, 67]],
+    'plane-cabin': [[55, 30], [30, 57], [21, 29], [82, 18], [74, 62]],
+    'plane-cockpit': [[62, 58], [30, 57], [77, 62], [70, 44], [50, 36]],
+    'plane-galley': [[51, 48], [32, 56], [22, 72], [72, 42], [79, 68]],
+    'plane-hold': [[51, 40], [36, 58], [69, 57], [20, 74], [83, 76]],
+    'plane-skylounge': [[46, 42], [47, 59], [20, 62], [72, 40], [80, 64]],
+    'plane-washroom': [[34, 45], [35, 64], [50, 26], [77, 55], [67, 74]],
+    'ship-bridge': [[49, 18], [37, 52], [22, 54], [83, 60], [66, 47]],
+    'ship-engine': [[50, 32], [36, 56], [18, 60], [84, 44], [79, 75]],
+    'ship-hold': [[51, 32], [29, 49], [24, 73], [74, 52], [79, 78]],
+    'ship-promenade': [[14, 30], [34, 40], [32, 68], [74, 48], [84, 70]],
+    'train-baggage': [[50, 50], [35, 48], [22, 78], [68, 52], [81, 78]],
+    'train-cab': [[26, 45], [36, 65], [19, 70], [72, 34], [60, 16]],
+    'train-dining': [[51, 38], [28, 52], [17, 75], [72, 52], [80, 70]],
+    'train-kitchen': [[53, 33], [22, 40], [25, 66], [80, 75], [79, 40]],
+    'train-lounge': [[34, 33], [52, 45], [22, 68], [69, 48], [83, 70]],
+    'train-observation': [[53, 47], [33, 60], [12, 50], [69, 45], [85, 62]],
+    'train-sleeping': [[50, 55], [35, 33], [23, 70], [78, 22], [65, 64]],
+  };
+  function roomArt(rid) {
+    const k = S.c.place + '-' + rid;
+    return S.c.era === 'old' && ROOM_ART[k] ? { src: 'art/rooms/' + k + '-old.jpg', spots: ROOM_ART[k] } : null;
+  }
+
   function roomObjects(rid) {
     const c = S.c;
     if (!c._objs) c._objs = {};
     if (c._objs[rid]) return c._objs[rid];
     const r = room(rid);
+    const art = roomArt(rid);
     // Which ordinary object holds the dropped item, the scrap of paper or the puzzle. Fixed for each case.
     const items = [];
     if (c.traces[rid]) items.push('trace');
@@ -1745,11 +1898,11 @@
     for (let i = decor.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); const t = decor[i]; decor[i] = decor[j]; decor[j] = t; }
     const roleOf = {};
     items.forEach((it, i) => { roleOf[decor[i]] = it; });
-    const list = r.objs.map((d, i) => ({ key: 'o' + i, label: d[0], icon: d[1], text: d[2], slot: OBJ_SLOTS[i],
+    const list = r.objs.map((d, i) => ({ key: 'o' + i, label: d[0], icon: d[1], text: d[2], slot: art ? art.spots[i] : OBJ_SLOTS[i],
       role: i === 0 ? 'weapon' : i === 1 ? 'hide' : roleOf[i] || 'none' }));
     if (rid === c.crimeRoom) {
-      list.push({ key: 'body', label: 'The body', icon: '†', text: '', slot: [50, 55], role: 'body' });
-      list.push({ key: 'print', label: 'Footprint', icon: '👣', text: '', slot: [50, 82], role: 'print' });
+      list.push({ key: 'body', label: 'The body', icon: '†', text: '', slot: art ? [46, 82] : [50, 55], role: 'body' });
+      list.push({ key: 'print', label: 'Footprint', icon: '👣', text: '', slot: art ? [63, 91] : [50, 82], role: 'print' });
     }
     c._objs[rid] = list;
     return list;
@@ -1796,12 +1949,12 @@
     if (o.role === 'weapon') {
       const hw = c.weapons.find((x) => x.home === rid);
       return lead + (hw.id === c.weapon
-        ? '<p class="clue"><strong>Something is missing:</strong> ' + esc(hw.empty) + '.</p>'
-        : '<p class="clue muted">The ' + esc(hw.name) + (many(hw) ? ' are in their usual place' : ' is in its usual place') + ', untouched.</p>');
+        ? '<div class="clue wpn-clue"><span class="wpn-pic gone">' + weaponImg(hw) + '</span><p><strong>Something is missing:</strong> ' + esc(hw.empty) + '.</p></div>'
+        : '<div class="clue muted wpn-clue"><span class="wpn-pic">' + weaponImg(hw) + '</span><p>The ' + esc(hw.name) + (many(hw) ? ' are in their usual place' : ' is in its usual place') + ', untouched.</p></div>');
     }
     if (o.role === 'hide') {
       return lead + (rid === c.hideRoom
-        ? '<p class="clue"><strong>Hidden ' + esc(r.hide) + ':</strong> the ' + esc(w.name) + '. Someone has wiped ' + (many(w) ? 'them' : 'it') + ', but not well enough.</p>'
+        ? '<div class="clue wpn-clue"><span class="wpn-pic">' + weaponImg(w) + '</span><p><strong>Hidden ' + esc(r.hide) + ':</strong> the ' + esc(w.name) + '. Someone has wiped ' + (many(w) ? 'them' : 'it') + ', but not well enough.</p></div>'
         : '<p class="clue muted">You check ' + esc(r.hide) + '. Nothing is hidden there.</p>');
     }
     if (o.role === 'trace') {
@@ -1852,6 +2005,7 @@
     const rid = ROOM.rid;
     const r = room(rid);
     const objs = roomObjects(rid);
+    const art = roomArt(rid);
     const done = objs.filter((o) => inspected(rid, o.key));
     const order = S.objs[rid] ? S.objs[rid].map((k) => objs.find((o) => o.key === k)).filter(Boolean) : objs;
     const idx = S.done.indexOf('s:' + rid);
@@ -1859,14 +2013,15 @@
       const d = inspected(rid, o.key);
       return '<button class="hot' + (d ? ' looked' : '') + (o.key === latest ? ' just' : '') + (o.role === 'body' ? ' body' : '') + '" data-act="obj" data-k="' + o.key +
         '" style="left:' + o.slot[0] + '%;top:' + o.slot[1] + '%" aria-label="' + esc(o.label) + (d ? ', inspected' : '') + '">' +
-        '<span class="hot-ic" aria-hidden="true">' + o.icon + '</span><span class="hot-label">' + esc(o.label) + '</span></button>';
+        '<span class="hot-ic" aria-hidden="true">' + (art && o.role !== 'body' ? '' : o.icon) + '</span><span class="hot-label">' + esc(o.label) + '</span></button>';
     }).join('');
     const finds = order.map((o) => {
       const html = objResult(rid, o);
       return '<li class="find' + (o.key === latest ? ' just' : '') + '" id="find-' + o.key + '" data-note="The ' + esc(r.name) + ': ' + esc(o.label) + '">' + html + noteBtnFor(html) + '</li>';
     }).join('');
     const body = '<p>' + esc(r.desc) + '</p>' +
-      '<div class="scene place-' + c.place + '" style="--room:' + r.color + '">' + sceneBackdrop() + hots + '</div>' +
+      '<div class="scene place-' + c.place + (art ? ' has-art' : '') + '" style="--room:' + r.color + '">' + sceneBackdrop() +
+      (art ? '<img class="scene-art" src="' + art.src + '" alt="" decoding="async" onerror="this.parentNode.classList.remove(\'has-art\');this.remove()">' : '') + hots + '</div>' +
       '<div class="scene-bar"><span>' + (done.length === objs.length ? 'You have looked at everything here.' : 'Tap anything to inspect it · ' + done.length + ' of ' + objs.length + ' looked at') + '</span>' +
       (done.length < objs.length ? '<button class="mini-btn" data-act="obj-all">Search everything</button>' : '') + '</div>' +
       (finds ? '<ol class="finds" aria-live="polite">' + finds + '</ol>' : '<p class="hint">Nothing looked at yet. Inspecting things costs no extra time.</p>');
@@ -2314,7 +2469,7 @@
       '<h3>Who killed ' + esc(person(c.victim).name) + ' in the ' + esc(room(c.crimeRoom).name) + '?</h3>' +
       choiceGroup('killer', c.suspects.map((id) => ({ v: id, color: person(id).color, html: avatar(person(id), true) + '<span>' + esc(person(id).name) + '</span>' }))) +
       '<h3>With what?</h3>' +
-      choiceGroup('weapon', c.weapons.map((w) => ({ v: w.id, color: room(w.home).color, html: '<span>' + esc(cap(w.name)) + '</span>' }))) +
+      choiceGroup('weapon', c.weapons.map((w) => ({ v: w.id, color: room(w.home).color, html: weaponImg(w, 'wpn-thumb') + '<span>' + esc(cap(w.name)) + '</span>' }))) +
       '<h3>When?</h3>' +
       choiceGroup('slot', [1, 2, 3].map((s) => ({ v: s, html: '<span>Between ' + slot(s) + ' and ' + endOfSlot(s) + '</span>' }))) +
       '<details class="panel accuse-board"><summary>Look at the timeline again</summary>' + boardHTML() + '</details>' +
@@ -2367,16 +2522,18 @@
     const d = deductions().filter((x) => !x.na);
     const found = d.filter((x) => x.ok).length;
     const spare = Math.max(0, leadsLeft());
+    // Finishing early only earns a bonus if the case was actually built on evidence, so a quick guess cannot cash in.
+    const earnsTime = found * 2 >= d.length;
     const wasted = wastedEffort();
     const wCount = wasted.reduce((n, x) => n + x[0], 0);
-    const mult = { cozy: 1, standard: 1.25, dread: 1.5 }[S.diff];
+    const mult = { cozy: 1, standard: 1.25, dread: 1.5, nightmare: 1.75 }[S.diff];
     const rows = [
       ['Named the killer', got.killer ? 500 : 0],
       ['Named the weapon', got.weapon ? 150 : 0],
       ['Named the hour', got.slot ? 150 : 0],
       ['Key discoveries · ' + found + ' of ' + d.length, found * 50],
       ['Puzzles solved · ' + S.solved.length + ' of ' + PUZZLE_IDS.length, S.solved.length * 60],
-      ['Time to spare · ' + spare + ' lead' + (spare === 1 ? '' : 's') + ' unused', spare * 15],
+      ['Time to spare · ' + spare + ' lead' + (spare === 1 ? '' : 's') + ' unused' + (earnsTime || !spare ? '' : ' (counts once you have half the key discoveries)'), earnsTime ? spare * 15 : 0],
       ['Wasted effort · ' + (wCount ? wasted.map((x) => (x[0] > 1 ? x[0] + ' ' : '') + x[1]).join(', ') : 'none'), -40 * wCount],
     ];
     const sub = rows.reduce((n, r) => n + r[1], 0);
@@ -2385,11 +2542,78 @@
     const best = Math.round((800 + d.length * 50 + PUZZLE_IDS.length * 60) * mult);
     const ratio = total / best;
     const rank = !got.killer ? ['Outwitted', 'The killer fooled you tonight.']
+      : found < 3 ? ['Lucky Guess', 'Right name, thin evidence. A jury might not agree.']
       : ratio >= 0.9 ? ['Master Detective', 'Nothing got past you.']
       : ratio >= 0.7 ? ['Seasoned Investigator', 'A solid case, built on evidence.']
       : ratio >= 0.5 ? ['Keen Amateur', 'You got your killer, with gaps in the proof.']
       : ['Lucky Guess', 'Right name, thin evidence. A jury might not agree.'];
-    return { rows, mult, sub, total, best, rank };
+    return { rows, mult, sub, total, best, rank, found };
+  }
+
+  // Add a closed case to the career. Called once, when the accusation is made.
+  function recordCase() {
+    const c = S.c;
+    const got = { killer: S.draft.killer === c.killer, weapon: S.draft.weapon === c.weapon, slot: Number(S.draft.slot) === c.T };
+    const sc = scoreCard(got);
+    const code = caseCode(c);
+    const counted = !CAREER.codes.includes(code);
+    const before = CAREER.points;
+    const earned = [];
+    if (counted) {
+      CAREER.codes.push(code);
+      CAREER.points += sc.total;
+      CAREER.closed++;
+      if (got.killer) CAREER.solved++;
+      CAREER.best = Math.max(CAREER.best, sc.total);
+      const sh = c.puzzles.shoes[c.killer];
+      const real = sc.found >= 3; // badges for skill need a case built on at least a little evidence, not a lucky guess
+      const want = {
+        first: true,
+        exact: real && got.killer && got.weapon && got.slot,
+        silver: stuck() && confessed(),
+        light: real && got.killer && stuck() && leadsLeft() >= totalLeads() / 2,
+        stone: S.solved.length === PUZZLE_IDS.length,
+        hound: got.killer && printFound() && S.shoes.includes(c.killer) && !sh.refuses,
+        nightmare: got.killer && S.diff === 'nightmare',
+      };
+      Object.keys(want).forEach((k) => { if (want[k] && !CAREER.badges[k]) { CAREER.badges[k] = Date.now(); earned.push(k); } });
+    }
+    CAREER.book.push({ code, diff: S.diff, at: Date.now(), right: got.killer, hits: (got.killer ? 1 : 0) + (got.weapon ? 1 : 0) + (got.slot ? 1 : 0),
+      score: sc.total, rank: sc.rank[0], counted, killer: person(c.killer).name, badges: earned });
+    if (CAREER.book.length > 100) CAREER.book = CAREER.book.slice(-100);
+    saveCareer();
+    S.record = { counted, before, after: CAREER.points, earned, score: sc.total, rank: sc.rank[0], right: got.killer };
+  }
+
+  function shareText() {
+    const r = S.record;
+    return 'The Midnight Crossing · Case ' + caseCode(S.c) + ' (' + DIFFS[S.diff].label + ') · ' + r.score + ' points · ' + r.rank + ' · ' +
+      (r.right ? 'I caught the killer.' : 'The killer got away from me.') + ' Can you beat it?';
+  }
+
+  function careerPanel() {
+    const r = S.record;
+    if (!r) return '';
+    let html = '<div class="panel career-panel"><h3>Your career</h3>';
+    if (!r.counted) {
+      html += '<p>You have closed case ' + caseCode(S.c) + ' before, so this replay adds nothing to your career. Replays are just for fun.</p>';
+    } else {
+      const was = rankIndex(r.before), now = rankIndex(r.after);
+      html += '<p class="career-gain"><strong>+' + r.score.toLocaleString() + '</strong> career points · ' + r.after.toLocaleString() + ' in total</p>';
+      for (let i = was + 1; i <= now; i++) {
+        html += '<div class="promotion"><strong>Promoted to ' + RANKS[i].t + '!</strong><span>Unlocked: ' + RANKS[i].what + '.</span></div>';
+      }
+      html += '<p class="kicker">' + RANKS[now].t + '</p>' + rankProgress(r.after);
+      if (r.earned.length) {
+        html += '<ul class="badges new">' + r.earned.map((k) => '<li class="badge earned"><span class="badge-sym" aria-hidden="true">' + BADGES[k][0] + '</span><div><strong>New badge: ' +
+          BADGES[k][1] + '</strong><span>' + BADGES[k][2] + '</span></div></li>').join('') + '</ul>';
+      }
+    }
+    html += '<button class="btn ghost" data-act="title-mode" data-mode="casebook">Open your casebook</button></div>';
+    html += '<div class="panel share"><h3>Challenge a friend</h3><p class="hint">Send them this. The case code gives them the same mystery, without spoiling who did it.</p>' +
+      '<textarea id="share-text" class="share-text" rows="3" readonly>' + esc(shareText()) + '</textarea>' +
+      '<button class="btn primary" data-act="copy-share">Copy</button></div>';
+    return html;
   }
 
   function viewResult() {
@@ -2473,7 +2697,7 @@
       '<tr class="total"><th scope="row">Total</th><td>' + sc.total + '</td></tr></tbody></table>' +
       '<p class="hint">Full marks before any time bonus: ' + sc.best + '.</p></div>' +
 
-      '<p class="hint">Share this case: <strong>' + caseCode(c) + '</strong></p>' +
+      careerPanel() +
       '<div class="accuse-actions">' +
       '<button class="btn primary big" data-act="title-mode" data-mode="new">New case</button>' +
       '<button class="btn" data-act="home">Main menu</button></div>' +
@@ -2541,7 +2765,7 @@
     lastBadge = n;
     if (S.screen === 'title' && S.titleMode === 'number') {
       const input = document.getElementById('case-num');
-      if (input) input.focus();
+      if (input) { if (S.prefill) { input.value = S.prefill; S.prefill = ''; } input.focus(); }
     }
   }
 
@@ -2578,7 +2802,7 @@
       case 'continue': {
         const sv = loadSave();
         if (!sv) { render(); break; }
-        S.c = assignPortraits(MC.generateCase(sv.seed, sv.place, sv.era, sv.diff));
+        S.c = assignPortraits(MC.generateCase(sv.seed, sv.place, sv.era, genDiff(sv.diff)));
         S.diff = sv.diff;
         // Keep only actions that make sense for this case, in case the save is old or damaged.
         const valid = (a) => typeof a === 'string' && (
@@ -2643,7 +2867,19 @@
       case 'accuse': S.screen = 'accuse'; S.dawn = false; render(); break;
       case 'back-to-case': S.screen = 'investigate'; render(); break;
       case 'pick': S.draft[d.k] = d.k === 'slot' ? Number(d.v) : d.v; render(); break;
-      case 'submit': clearSave(); S.reveal = 0; S.screen = 'result'; render(); break;
+      case 'submit':
+        if (S.screen !== 'accuse') break;
+        recordCase(); clearSave(); S.reveal = 0; S.screen = 'result'; render(); break;
+      case 'copy-share': {
+        const ta = document.getElementById('share-text');
+        const done = () => toast('Copied. Paste it to a friend.');
+        const fallback = () => { if (ta) { ta.focus(); ta.select(); } toast('Press and hold the text to copy it.'); };
+        try { navigator.clipboard.writeText(shareText()).then(done, fallback); } catch (er) { fallback(); }
+        break;
+      }
+      case 'replay':
+        if (CODE_RE.test(d.code || '')) { S.prefill = d.code; S.titleMode = 'number'; S.numError = ''; S.screen = 'title'; render(); }
+        break;
       case 'reveal-next': case 'reveal-skip': {
         S.reveal = d.act === 'reveal-skip' ? 3 : Math.min(3, S.reveal + 1);
         // The moment of truth gets a sound: a bright tone if you were right, a single bell if not.
