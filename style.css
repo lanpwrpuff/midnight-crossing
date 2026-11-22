@@ -71,6 +71,61 @@
   --bar: rgba(28, 20, 13, 0.96);
   --fog-rgb: 220, 190, 150;
 }
+/* Three themes earned through the detective career (see the Casebook). */
+[data-palette="candle"] {
+  /* Candle Wax: soot, tallow, flame orange, old ivory */
+  --bg: #15110c;
+  --bg-glow: #3a2a14;
+  --card: rgba(44, 34, 22, 0.84);
+  --card-hi: rgba(66, 50, 30, 0.92);
+  --line: rgba(250, 225, 180, 0.16);
+  --text: #f6ecd9;
+  --muted: #c4b294;
+  --accent: #f0a640;
+  --accent-ink: #251503;
+  --glow: #ffd98a;
+  --em: #ffd98a;
+  --eerie: #d8c39b;
+  --modal: #241b10;
+  --bar: rgba(21, 17, 12, 0.96);
+  --fog-rgb: 240, 210, 160;
+}
+[data-palette="bloodmoon"] {
+  /* Blood Moon: night red, rust, ash, a red moon */
+  --bg: #140b0d;
+  --bg-glow: #4a1418;
+  --card: rgba(48, 20, 24, 0.84);
+  --card-hi: rgba(72, 28, 34, 0.92);
+  --line: rgba(240, 190, 190, 0.16);
+  --text: #f1e2e0;
+  --muted: #c09a9a;
+  --accent: #e0574f;
+  --accent-ink: #2a0806;
+  --glow: #ff9b7a;
+  --em: #ffb59a;
+  --eerie: #d4a3a0;
+  --modal: #230f12;
+  --bar: rgba(20, 11, 13, 0.96);
+  --fog-rgb: 220, 150, 150;
+}
+[data-palette="ink"] {
+  /* Ink and Bone: black ink, bone white, a single gold thread */
+  --bg: #0b0b0c;
+  --bg-glow: #24242a;
+  --card: rgba(26, 26, 30, 0.86);
+  --card-hi: rgba(40, 40, 46, 0.94);
+  --line: rgba(235, 230, 220, 0.18);
+  --text: #f2eee6;
+  --muted: #a9a59c;
+  --accent: #d8c08a;
+  --accent-ink: #1a1408;
+  --glow: #efe3c4;
+  --em: #efe3c4;
+  --eerie: #c9c4b8;
+  --modal: #16161a;
+  --bar: rgba(11, 11, 12, 0.96);
+  --fog-rgb: 225, 225, 230;
+}
 :root {
   --danger: #ec7b84;
   --ok: #8bd0a0;
@@ -597,6 +652,45 @@ body.nb-open { overflow: hidden; }
 .nb-body h3 small { color: var(--muted); font-family: var(--body-font); font-size: 0.8rem; margin-left: 0.4em; }
 .nb-count.quiet { background: var(--line); color: var(--text); }
 
+/* ---------- career and casebook ---------- */
+.rank-chip { margin: 0 0 0.4rem; padding: 0.45em 1.1em; font: inherit; font-size: 0.92rem; color: var(--muted); background: var(--card); border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
+.rank-chip strong { color: var(--glow); font-family: var(--title-font); font-weight: 400; font-size: 1.05rem; }
+.rank-chip:hover { color: var(--text); background: var(--card-hi); }
+.choice.locked, .diff-btn.locked { opacity: 0.5; cursor: not-allowed; }
+.choice small { display: block; color: var(--muted); font-size: 0.72rem; }
+.casebook { text-align: left; }
+.cb-rank { margin: 0; font-size: 2rem; color: var(--glow); }
+.cb-points { margin: 0 0 0.6rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.rank-bar { height: 10px; margin: 0.3rem 0 0.4rem; border-radius: 999px; background: color-mix(in srgb, var(--text) 10%, transparent); overflow: hidden; }
+.rank-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--glow)); }
+.cb-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; margin: 0.9rem 0 0.4rem; }
+.cb-stats div { padding: 0.6rem 0.4rem; text-align: center; border: 1px solid var(--line); border-radius: 12px; }
+.cb-stats strong { display: block; font-family: var(--title-font); font-weight: 400; font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+.cb-stats span { color: var(--muted); font-size: 0.8rem; }
+.cb-ladder, .badges, .cb-cases { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.cb-ladder li { display: flex; align-items: flex-start; gap: 0.6rem; margin: 0; color: var(--muted); }
+.cb-ladder li.reached { color: var(--text); }
+.cb-ladder li.current strong { color: var(--glow); }
+.cb-ladder li div span, .badge div span { display: block; color: var(--muted); font-size: 0.86rem; }
+.cb-ladder li strong, .badge strong { display: block; }
+.badge { display: flex; align-items: flex-start; gap: 0.7rem; margin: 0; padding: 0.55rem 0.7rem; border: 1px dashed var(--line); border-radius: 12px; opacity: 0.6; }
+.badge.earned { opacity: 1; border-style: solid; border-color: color-mix(in srgb, var(--glow) 45%, var(--line)); background: color-mix(in srgb, var(--glow) 6%, transparent); }
+.badge-sym { flex: none; display: grid; place-items: center; width: 2.2rem; height: 2.2rem; border-radius: 50%; font-size: 1.1rem; color: var(--muted); border: 1.5px solid var(--line); }
+.badge.earned .badge-sym { color: var(--accent-ink); background: var(--glow); border-color: transparent; }
+.badges.new { margin-top: 0.8rem; }
+.cb-case { margin: 0; padding: 0.6rem 0.8rem; border: 1px solid var(--line); border-radius: 12px; }
+.cb-top { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+.cb-top strong { font-family: var(--title-font); font-weight: 400; font-size: 1.15rem; letter-spacing: 0.03em; }
+.cb-score { font-variant-numeric: tabular-nums; color: var(--glow); }
+.cb-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.5rem; color: var(--muted); font-size: 0.85rem; }
+.cb-meta span:nth-child(2) { flex: 1 1 12rem; min-width: 0; }
+.career-gain { font-size: 1.05rem; }
+.career-gain strong { font-family: var(--title-font); font-size: 1.6rem; font-weight: 400; color: var(--glow); }
+.promotion { margin: 0.6rem 0; padding: 0.7rem 0.9rem; border-radius: 12px; border: 1px solid var(--glow); background: color-mix(in srgb, var(--glow) 12%, transparent); animation: rise 0.4s ease-out; }
+.promotion strong { display: block; font-family: var(--title-font); font-weight: 400; font-size: 1.3rem; color: var(--glow); }
+.share-text { display: block; width: 100%; margin: 0.4rem 0 0.7rem; padding: 0.6rem 0.8rem; font: inherit; font-size: 0.92rem; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 10px; resize: none; box-sizing: border-box; }
+
 /* ---------- the ending ---------- */
 .reveal { display: flex; flex-direction: column; gap: 1rem; }
 .beat { padding: 1.2rem 1.3rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
@@ -683,4 +777,55 @@ body.very-late .atmo { animation: lampflicker 11s linear infinite; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* ---------- painted art: weapons, clues and board pieces ---------- */
+.wpn-clue { display: flex; align-items: center; gap: 0.9rem; }
+.wpn-clue p { margin: 0; }
+.wpn-pic { flex: none; width: 84px; height: 84px; border-radius: 10px; overflow: hidden; background: #0b090e; box-shadow: 0 0 0 1px var(--line), 0 6px 16px rgba(0, 0, 0, 0.45); }
+.wpn-pic:empty { display: none; }
+.wpn-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.wpn-pic.gone .wpn-img { filter: grayscale(1) brightness(0.45); opacity: 0.55; }
+.wpn-pic.gone { position: relative; }
+.wpn-pic.gone::after { content: "?"; position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--title-font); font-size: 2.4rem; color: var(--danger); text-shadow: 0 2px 8px #000; }
+.wpn-thumb { flex: none; width: 46px; height: 46px; border-radius: 8px; object-fit: cover; box-shadow: 0 0 0 1px var(--line); }
+.choice:has(.wpn-thumb) { padding-left: 0.45em; }
+
+.board-scroll {
+  background:
+    radial-gradient(ellipse at 30% 0%, color-mix(in srgb, var(--glow) 14%, transparent), transparent 55%),
+    linear-gradient(color-mix(in srgb, var(--bg) 30%, transparent), color-mix(in srgb, var(--bg) 30%, transparent)),
+    url(art/board/surface.jpg) 0 0 / 240px 240px,
+    color-mix(in srgb, var(--card) 80%, var(--bg));
+  background-attachment: local;
+}
+.bn-person, .bn-ev { background-color: var(--paper); background-image: url(art/board/paper.jpg); background-size: 220px 220px; background-blend-mode: multiply; }
+.bn::before { width: 24px; height: 24px; margin-left: -10px; top: -14px; border-radius: 0; background: url(art/board/pin.png) center / contain no-repeat; box-shadow: none; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5)); }
+.bn-time::before, .bn-room::before { width: 20px; height: 20px; margin-left: -8px; top: -12px; }
+.bn-photo { border: 7px solid transparent; border-bottom-width: 14px; border-image: url(art/board/frame.png) 27 27 70 27 stretch; background-clip: padding-box; height: 108px; margin-bottom: 4px; }
+.bn-time, .bn-room { width: 140px; min-height: 60px; padding: 10px 12px 10px 36px; font-size: 0.9rem; line-height: 1.15; border: 0; border-radius: 0; color: #2b2520; font-weight: 600; text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25);
+  background: url(art/board/tag.png) center / 100% 100% no-repeat; box-shadow: none; filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.5)); }
+.bn-time { font-size: 1rem; }
+.bn-time.sel, .bn-room.sel, .bn-time.from, .bn-room.from { box-shadow: none; filter: drop-shadow(0 0 0 var(--accent)) drop-shadow(0 0 6px var(--accent)); }
+.bn-pic { float: right; width: 56px; height: 56px; margin: -4px -4px 4px 8px; border-radius: 4px; object-fit: cover; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45); transform: rotate(3deg); }
+.stamp.s-s, .stamp.s-d { width: 104px; height: 40px; padding: 0; border: 0; border-radius: 0; background: center / contain no-repeat; transform: rotate(-6deg); right: 2px; bottom: 2px; opacity: 0.92; }
+.stamp.s-s { background-image: url(art/board/stamp-suspicious.png); }
+.stamp.s-d { background-image: url(art/board/stamp-disproven.png); }
+.stamp.s-s > span, .stamp.s-d > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+/* ---------- painted rooms (art/rooms) ---------- */
+.scene.has-art { aspect-ratio: 1200 / 896; max-height: none; }
+.scene-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.scene.has-art::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(0, 0, 0, 0.45)); }
+.has-art .hot { z-index: 2; }
+.has-art .hot-ic { width: 30px; height: 30px; background: radial-gradient(circle, color-mix(in srgb, var(--glow) 55%, transparent) 0 22%, rgba(10, 8, 14, 0.35) 26% 100%);
+  border: 2px solid color-mix(in srgb, var(--glow) 80%, #fff); box-shadow: 0 0 10px color-mix(in srgb, var(--glow) 55%, transparent), 0 2px 6px rgba(0, 0, 0, 0.7); }
+.has-art .hot.looked .hot-ic { opacity: 0.6; border-color: var(--accent); background: rgba(10, 8, 14, 0.45); }
+.has-art .hot.body .hot-ic { width: 38px; height: 38px; font-size: 1.5rem; }
+.has-art .hot-label { background: rgba(8, 6, 14, 0.72); }
+@media (max-width: 480px) {
+  .has-art .hot { width: 70px; }
+  .has-art .hot-ic { width: 24px; height: 24px; border-width: 1.5px; }
+  .has-art .hot.body .hot-ic { width: 30px; height: 30px; font-size: 1.2rem; }
+  .has-art .hot-label { font-size: 0.6rem; padding: 0 4px; }
 }

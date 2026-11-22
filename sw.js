@@ -1,6 +1,6 @@
 // Lets the game work offline once it is hosted on a website.
 // Network first (so updates show up straight away), cached copy when offline.
-const CACHE = 'midnight-crossing-v13';
+const CACHE = 'midnight-crossing-v16';
 const FILES = [
   './', 'index.html', 'style.css', 'icon.svg', 'manifest.webmanifest',
   'js/rng.js', 'js/data.js', 'js/places.js', 'js/generator.js', 'js/atmo.js', 'js/game.js',
